@@ -59,7 +59,7 @@ def user_is_admin(user: User) -> bool:
 # --- CRUD para Dropbox ---
 #===================================================================================================================================
 def save_upload(db: Session, folder_hash: str, files: dict, user_id:  Optional[int] = None,  checklist_id: Optional[int] = None):
-    folder = UploadFolder(folder_hash=folder_hash, fk_user=user_id, checklist_id=checklist_id)
+    folder = UploadFolder(folder_hash=folder_hash, fk_user=user_id, fk_checklist=checklist_id)
     db.add(folder)
     db.flush()  # garante que o folder_id é gerado antes de criar arquivos
 
