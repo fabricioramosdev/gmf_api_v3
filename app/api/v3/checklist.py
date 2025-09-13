@@ -1,16 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Path
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from app.db.session import get_db
-from app.db.models import User, Checklist
+from app.db.models import User, Checklist, ChecklistItemsInspected
 from app.core.dependencies import get_current_user
 from app.services.audit_service import log_action
 
 
 from app.schemas.dtos import (
     ChecklistCreate, ChecklistUpdate, 
-    ChecklistOut
+    ChecklistOut, ChecklistFullOut
 )
 
 from app.db.crud import (
@@ -25,6 +25,9 @@ CHECKLIST_STATUS_CODE_TO_DB = {
 }
 
 router = APIRouter(prefix="/check-list", tags=["Checklists"])
+
+def _is_admin(user: User) -> bool:
+    return getattr(user, "is_admin", False) or str(getattr(user, "role", "")).lower() == "admin"
 
 @router.post("/", response_model=ChecklistOut, status_code=201)
 def create_checklist(payload: ChecklistCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
@@ -84,4 +87,28 @@ def list_user_checklists(
     return checklists
 
 
+@router.get("/{checklist_id}/full", response_model=ChecklistFullOut)
+def get_checklist_full(
+    checklist_id: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # carrega checklist + itens + foto de cada item (eager load)
+    obj = (
+        db.query(Checklist)
+          .options(
+              joinedload(Checklist.itens)  # relação 'itens'
+              .joinedload(ChecklistItemsInspected.foto)  # relação 'foto' de cada item
+          )
+          .filter(Checklist.id == checklist_id)
+          .first()
+    )
+
+    if not obj:
+        raise HTTPException(status_code=404, detail="Checklist não encontrado.")
+
+    if not _is_admin(current_user) and obj.fk_user != current_user.id:
+        raise HTTPException(status_code=403, detail="Permissão negada.")
+
+    return obj  # Pydantic v2 com from_attributes=True resolve tudo com os aliases acima
 

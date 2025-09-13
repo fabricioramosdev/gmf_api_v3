@@ -54,6 +54,10 @@ class DTO(BaseModel):
 
 
 
+
+
+
+
 # =============================================================
 # Schemas – Items no Checklist
 # =============================================================
@@ -117,6 +121,7 @@ class ChecklistItemOut(DTO):
 
 class ChecklistItemsBulkCreate(DTO):
     items: List[ChecklistItemCreate]
+
 
 
 # =============================================================
@@ -365,3 +370,36 @@ class UploadFileOut(DTO):
     fk_folder: int = Field(serialization_alias="folder_id")
     created_in: datetime
 
+
+# =============================================================
+class ChecklistItemWithPhotoOut(DTO):
+    id: int
+    # lê do ORM fk_item/fk_foto e responde como item_id/photo_id
+    fk_item: int = Field(serialization_alias="item_id")
+    status: str
+    fk_photo: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("fk_photo", "fk_foto", "foto_id"),
+        serialization_alias="photo_id",
+    )
+    # lê a relação 'foto' do ORM e expõe como 'photo' (UploadFileOut)
+    photo: Optional[UploadFileOut] = Field(default=None, validation_alias=AliasChoices("foto", "photo"))
+
+class ChecklistFullOut(DTO):
+    id: int
+    fk_user: int
+    fk_cliente: int
+    version_bus: Optional[str] = None
+    km_start: Optional[int] = None
+    fuel_start: Optional[str] = None
+    date_start: datetime
+    km_end: Optional[int] = None
+    fuel_end: Optional[str] = None
+    date_end: Optional[datetime] = None
+    status: str
+    obs: Optional[str] = None
+    # o atributo no ORM é 'itens'; mapeamos para 'items' na resposta
+    items: List[ChecklistItemWithPhotoOut] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("items", "itens"),
+    )

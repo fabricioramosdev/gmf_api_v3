@@ -20,13 +20,14 @@ class ChecklistItemsInspected(Base):
     item = relationship("InspectionItem", back_populates="checklists")
 
     status = Column(String, nullable=False)
-    fk_foto = Column(Integer, ForeignKey("upload_files.id", ondelete="SET NULL"), nullable=True, index=True)
-    foto = relationship("UploadFile")
+    fk_photo = Column(Integer, ForeignKey("upload_files.id", ondelete="SET NULL"), nullable=True, index=True)
+    photo = relationship("UploadFile", back_populates="inspected_item", uselist=False)
 
     created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("fk_checklist", "fk_item", name="uq_checklist_item"),
+        UniqueConstraint("fk_photo", name="uq_item_photo"),  # redundante com unique=True, mas explícito
     )
 
 
@@ -95,7 +96,6 @@ class Checklist(Base):
     created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
 # OK DTO
-# --- UploadFolder (1) ---
 class UploadFolder(Base):
     __tablename__ = "upload_folders"
 
@@ -116,7 +116,6 @@ class UploadFolder(Base):
     created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
 # OK DTO
-# --- UploadFile (N) ---
 class UploadFile(Base):
     __tablename__ = "upload_files"
 
@@ -133,6 +132,10 @@ class UploadFile(Base):
     )
     # volta para a pasta (nome deve bater com o lado de lá)
     folder = relationship("UploadFolder", back_populates="files")
+
+    # lado 1:1 inverso (opcional, mas deixa a API ORM mais clara)
+    inspected_item = relationship("ChecklistItemsInspected", back_populates="photo",
+                                  uselist=False)
 
     created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 

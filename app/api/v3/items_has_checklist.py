@@ -12,12 +12,13 @@ from app.db.crud import (
     update_checklist_item,
     delete_checklist_item,
     bulk_add_items,
+    set_item_photo
 )
 from app.schemas.dtos import (
     ChecklistItemCreate, ChecklistItemUpdate, ChecklistItemOut, ChecklistItemsBulkCreate
 )
 
-router = APIRouter(prefix="/checklists/{checklist_id}/items", tags=["Checklist Items"])
+router = APIRouter(prefix="/checklists/{checklist_id}/items", tags=["Checklist >> Items inspected" ])
 
 def _is_admin(u: User) -> bool:
     return getattr(u, "is_admin", False) or str(getattr(u, "role", "")).lower() == "admin"
@@ -37,6 +38,17 @@ def create_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    
+    def _norm_photo_id(v):
+        if v in (None, "", 0, "0", False):  # trate 0/“0”/vazio como sem foto
+            return None
+        try:
+            iv = int(v)
+            return iv if iv > 0 else None
+        except Exception:
+            return None
+
+
     _can_touch_checklist(db, checklist_id, current_user)
     # tenta criar; se já existe, devolve 409
     exists = get_checklist_item(db, checklist_id, payload.item_id)
@@ -49,6 +61,14 @@ def create_item(
         status=payload.status,
         photo_id=payload.photo_id,
     )
+
+    # ✅ normaliza photo_id: só usa se for inteiro > 0
+    photo_id = _norm_photo_id(payload.photo_id)
+
+    # (opcional) garantir unicidade da foto: não deixar mesma foto em outro item
+    if photo_id is not None:
+        set_item_photo(db, checklist_id=checklist_id, item_id=payload.item_id, photo_id=payload.photo_id)
+    
     return obj
 
 @router.put("/{item_id}", response_model=ChecklistItemOut)

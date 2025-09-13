@@ -1,6 +1,6 @@
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
-
+from fastapi import HTTPException
 
 from typing import List, Optional
 
@@ -219,7 +219,6 @@ def list_all_checklists(db: Session, user_id: int) -> List[Checklist]:
     return db.query(Checklist).filter(Checklist.fk_user == user_id).all()
 
 
-
 #=====================================================================================
 #---- CRUD para ChecklistItemsInspected ---         
 #=====================================================================================
@@ -257,7 +256,7 @@ def add_item_to_checklist(
         fk_checklist=checklist_id,
         fk_item=item_id,
         status=status,
-        fk_foto=photo_id,   # nome do model
+        fk_photo=photo_id,   # nome do model
     )
     db.add(obj)
     db.commit()
@@ -277,7 +276,7 @@ def update_checklist_item(
     if "status" in data and data["status"] is not None:
         obj.status = data["status"]
     if "photo_id" in data:
-        obj.fk_foto = data["photo_id"]
+        obj.fk_photo = data["photo_id"]
     db.commit()
     db.refresh(obj)
     return obj
@@ -304,7 +303,7 @@ def bulk_add_items(
         if existing:
             if upsert:
                 if "status" in it:   existing.status = it["status"]
-                if "photo_id" in it: existing.fk_foto = it["photo_id"]
+                if "photo_id" in it: existing.fk_photo = it["photo_id"]
                 out.append(existing)
             # se não for upsert, apenas ignora
         else:
@@ -312,7 +311,7 @@ def bulk_add_items(
                 fk_checklist=checklist_id,
                 fk_item=it["item_id"],
                 status=it.get("status", "NA"),
-                fk_foto=it.get("photo_id"),
+                fk_photo=it.get("photo_id"),
             )
             db.add(obj)
             out.append(obj)
@@ -320,3 +319,24 @@ def bulk_add_items(
     # refresh opcional (se precisa de ids/fks na resposta)
     for obj in out: db.refresh(obj)
     return out
+
+def set_item_photo(db: Session, checklist_id: int, item_id: int, photo_id: int | None):
+    obj = (db.query(ChecklistItemsInspected)
+             .filter(ChecklistItemsInspected.fk_checklist == checklist_id,
+                     ChecklistItemsInspected.fk_item == item_id)
+             .first())
+    if not obj:
+        raise HTTPException(status_code=404, detail="Vínculo item↔checklist não encontrado.")
+
+    if photo_id:
+        # alguém já está usando essa foto?
+        holder = (db.query(ChecklistItemsInspected)
+                    .filter(ChecklistItemsInspected.fk_photo == photo_id)
+                    .first())
+        if holder and holder.id != obj.id:
+            raise HTTPException(status_code=409, detail="Foto já vinculada a outro item.")
+
+    obj.fk_photo = photo_id
+    db.commit()
+    db.refresh(obj)
+    return obj
