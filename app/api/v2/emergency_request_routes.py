@@ -6,7 +6,7 @@ from app.db.session import get_db
 from app.core.dependencies import get_current_user
 from app.db.models import User
 
-from app.schemas.emergency_request import (EmergencyRequestCreate, 
+from app.schemas.emergency_request_old import (EmergencyRequestCreate, 
                                            EmergencyRequestResponse)
 
 from app.db.crud import (create_emergency_request,

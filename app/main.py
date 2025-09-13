@@ -1,10 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from app.api.v2 import  (checklist_routes, dropbox_routes, auth_routes,
-                        user_routes, client_routes, inspection_item_routes, checklist_routes, 
-                        emergency_request_routes, app_routes, bus_version_routes)
+
+from app.api.v3 import api_v3
 
 from fastapi.openapi.utils import get_openapi
 
@@ -20,7 +17,7 @@ def custom_openapi():
         return app.openapi_schema
     openapi_schema = get_openapi(
         title="GMF API",
-        version="1.0.0",
+        version="1.0.3",
         description="Autenticação via JWT",
         routes=app.routes,
     )
@@ -49,15 +46,7 @@ app.add_middleware(
 )
 
 # Rotas da API
-app.include_router(auth_routes.router, prefix="/v2", tags=["Autenticação (✔)"])
-app.include_router(user_routes.router, prefix="/v2", tags=["Usuários (✔)"])
-app.include_router(emergency_request_routes.router, prefix="/v2", tags=["Emergencia (✔)"])
-app.include_router(dropbox_routes.router, prefix="/v2", tags=["Dropbox (✔)"])
-app.include_router(client_routes.router, prefix="/v2", tags=["Clientes (✔)"])
-app.include_router(inspection_item_routes.router, prefix="/v2", tags=["Itens de Inspeção (✔)"])
-app.include_router(checklist_routes.router, prefix="/v2", tags=["Checklist (✔)"])
-#app.include_router(bus_version_routes.router, prefix="/v2", tags=["Versão Ônibus (✔)"])
-app.include_router(app_routes.router, prefix="/v2", tags=["App Config (✔)"])
+app.include_router(api_v3)
 
 
 """

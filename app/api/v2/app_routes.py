@@ -3,7 +3,7 @@ from typing import List
 
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.schemas.app_version import AppVersionCreate, AppVersionResponse
+from app.schemas.app_version_old import AppVersionCreate, AppVersionResponse
 from app.db.crud import create_app_version, get_latest_app_version, get_all_app_versions
 
 router = APIRouter()

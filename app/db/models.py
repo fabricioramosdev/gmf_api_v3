@@ -1,130 +1,191 @@
 
 
 from datetime import datetime
+from enum import Enum
 
 from sqlalchemy import (Column, String, Integer, Float, Boolean, JSON, Text, DateTime,ForeignKey)
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
 
 
+class ChecklistStatus(str, Enum):
+    INICIADO = 1
+    EM_TRANSPORTE = 2
+    ENTREGUE = 3
+    CONCLUIDO = 0
 
-
+# OK DTO
 class Client(Base):
+
     __tablename__ = "clients"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String, nullable=False)
-    email = Column(String, nullable=True)
+    name = Column(String, nullable=False)
+    mail = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    status = Column(Boolean, default=True)
+
+    frequency_order = Column(Integer, default=0)
+    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
 
+# OK DTO
 class User(Base):
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)    
-    nome = Column(String, nullable=True)
-    cpf = Column(String, unique=True, nullable=True)
-    celular = Column(String, nullable=True)
-    email = Column(String, unique=True, nullable=True)    
-    cnh = Column(String, unique=True, index=True) # primeiro acesso será a CNH
+    name = Column(String, nullable=True)
+
+    phone = Column(String, nullable=True)
+    mail = Column(String, unique=True, nullable=True)   
+
+    num_cnh = Column(String, unique=True, index=True) 
+
     hashed_password = Column(String) # senha criptografada
-    criado_em = Column(DateTime,  default=datetime.now, nullable=False)
+
+    is_admin  = Column(Boolean, default=False)
+    
+    status = Column(Boolean, default=True)
+    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
 
-class InspectionItem(Base):
-    __tablename__ = "inspection_items"
-
-    id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String, nullable=False, unique=True)
-    obrigatorio = Column(Boolean, default=False)  # False = não, True = sim
-    foto = Column(Boolean, default=False)         # Novo campo: requer foto?
-    status = Column(Boolean, default=False)  # False = inativo, True = ativo
-    checklists = relationship("ChecklistInspected", back_populates="item")
-
-
+# OK DTO
 class Checklist(Base):
+    
     __tablename__ = "checklists"
-
+    
     id = Column(Integer, primary_key=True, index=True)
 
-    cliente_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    fk_cliente = Column(Integer, ForeignKey("clients.id"), nullable=False)
     cliente = relationship("Client", backref="checklists")
-    
-    versao_onibus = Column(String, nullable=True)  # exemplo: URBANO-CONVENCIONAL-4X2
-     
-    km_saida = Column(String, nullable=True)
-    combustivel_saida = Column(String, nullable=True)
-    foto_painel_saida =  Column(String, nullable=True)
 
-    km_chegada = Column(String, nullable=True)
-    combustivel_chegada = Column(String, nullable=True)    
-    foto_painel_chegada =  Column(String, nullable=True)
+    version_bus = Column(String, nullable=True)  
     
-    observacoes = Column(Text, nullable=True)    
+    km_start = Column(Integer, nullable=True)
+    fuel_start = Column(String, nullable=True)
+    date_start = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
     
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    km_end = Column(Integer, nullable=True)
+    fuel_end = Column(String, nullable=True)
+    date_end = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
+
+    fk_user = Column(Integer, ForeignKey("users.id"), nullable=False)
     user = relationship("User")
-    
-    iniciado_em = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
-    finalizado_em = Column(DateTime(timezone=True), nullable=True)
 
-  
-class ChecklistInspected(Base):
-    __tablename__ = "checklist_inspected"
+    status = Column(
+        SAEnum(
+            ChecklistStatus,
+            name="checklist_status",
+            native_enum=False,          # grava como VARCHAR + CHECK (portável)
+            validate_strings=True,      # valida mesmo se vier string
+        ),
+        nullable=False,
+        default=ChecklistStatus.INICIADO,
+        index=True,
+    )
+
+    obs = Column(Text, nullable=True)   
+    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
+
+
+# OK DTO
+class ChecklistItemsInspected(Base):
+
+    __tablename__ = "checklists_items_inspected"
+
     id = Column(Integer, primary_key=True, index=True)
 
-    # ID DO CHECKLIST
-    checklist_id = Column(Integer, ForeignKey("checklists.id"), nullable=False)
+    fk_checklist = Column(Integer, ForeignKey("checklists.id"), nullable=False)
     checklist = relationship("Checklist", backref="itens")
 
-    # ID DO ITEM CHECKED
-    inspection_item_id = Column(Integer, ForeignKey("inspection_items.id"))
+
+    fk_item = Column(Integer, ForeignKey("inspection_items.id"))
     item = relationship("InspectionItem", back_populates="checklists")
     
     status = Column(String, nullable=False) # Ex: ok, rejeitado, na
     
-    # mantém FK e aceita NULL; se o UploadFile sumir, seta NULL automaticamente
-    foto_id = Column(
+    fk_photo = Column(
         Integer,
         ForeignKey("upload_files.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    foto = relationship("UploadFile", lazy="joined")
+    photo = relationship("UploadFile", lazy="joined")
+    
+    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
 
-
+# OK DTO
 class UploadFolder(Base):
     __tablename__ = "upload_folders"
 
     id = Column(Integer, primary_key=True, index=True)
+    
     folder_hash = Column(String, unique=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    checklist_id = Column(Integer, ForeignKey("checklists.id"))
-    files = relationship("UploadFile", back_populates="folder")
+    
+    fk_user = Column(Integer, ForeignKey("users.id"))
+    fk_checklist = Column(Integer, ForeignKey("checklists.id"))
+    fk_file = relationship(
+        "UploadFile",
+        back_populates="folder",
+        cascade="all, delete-orphan",  # opcional, mas útil
+    )
+
+    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
 
+# OK DTO
 class UploadFile(Base):
     __tablename__ = "upload_files"
 
     id = Column(Integer, primary_key=True, index=True)
+
     file_name = Column(String)
     file_url = Column(String)
-    folder_id = Column(Integer, ForeignKey("upload_folders.id"))
-    folder = relationship("UploadFolder", back_populates="files")
+    
+    fk_folder = Column(Integer, ForeignKey("upload_folders.id"))
+    folder = relationship("UploadFolder", back_populates="fk_file")
+
+    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
 
-class EmergencyRequest(Base):
+# OK DTO
+class InspectionItem(Base):
+    __tablename__ = "inspection_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+    mandatory = Column(Boolean, default=False)  # False = não, True = sim
+    need_for_photo = Column(Boolean, default=False)         # Novo campo: requer foto?
+    status = Column(Boolean, default=True)  # False = inativo, True = ativo
+
+    checklists = relationship(
+        "ChecklistItemsInspected",
+        back_populates="item",
+        cascade="all, delete-orphan",
+    )
+    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
+
+
+# OK DTO
+class EmergencyRequests(Base):
     __tablename__ = "emergency_requests"
 
     id = Column(Integer, primary_key=True, index=True)
 
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    fk_user = Column(Integer, ForeignKey("users.id"), nullable=False)
     user = relationship("User", backref="emergency_requests")
-    timestamp = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
-    latitude = Column(Float, nullable=True)
-    longitude = Column(Float, nullable=True)
-    verificado = Column(Boolean, default=False, nullable=False)
+
+    date_requested = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
+    lat = Column(Float, nullable=True)
+    long = Column(Float, nullable=True)
+    checked = Column(Boolean, default=False, nullable=False)
+
+    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
+
 
 
 class ActionLog(Base):
@@ -135,19 +196,4 @@ class ActionLog(Base):
     action = Column(String, nullable=False)
     previous_data = Column(JSON, nullable=True)
     current_data = Column(JSON, nullable=True)
-    timestamp = Column(DateTime(timezone=True), default=datetime.now, nullable=False)   
-
-
-class AppVersion(Base):
-    __tablename__ = "app_versions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    version = Column(String, nullable=False)
-    platform = Column(String, nullable=False)  # Ex: "android" ou "ios"
-    created_at = Column(DateTime(timezone=True),default=datetime.now, nullable=False)
-
-class BusVersion(Base):
-    __tablename__ = "bus_versions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String, nullable=False, unique=True)
+    timestamp = Column(DateTime(timezone=True), default=datetime.now, nullable=False)

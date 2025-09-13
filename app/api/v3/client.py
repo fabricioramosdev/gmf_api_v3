@@ -1,4 +1,3 @@
-#app\api\v2\client_routes.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -8,19 +7,19 @@ from app.db.session import get_db
 from app.core.dependencies import get_current_user
 from app.services.audit_service import log_action
 from app.db.models import  User
-from app.schemas.client_old import (
-    ClientCreate, ClientResponse,
+
+from app.schemas.dtos import (
+    ClientCreate, ClientOut,
 )
-from app.db.crud import (create_client, get_all_clients,get_client_by_id, update_client, delete_client)
+from app.db.crud import (create_client, get_all_clients, 
+                         get_client_by_id, update_client, delete_client)
 
 
-# Cria um roteador FastAPI para as rotas de clientes
-router = APIRouter()
 
-# --- CLIENTES ---
+router = APIRouter(prefix="/client", tags=["Client"])
 
-# Rota para criar um novo cliente
-@router.post("/clients/", response_model=ClientResponse)
+
+@router.post("/", response_model=ClientOut)
 def create_clients(client: ClientCreate,
                     db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
@@ -32,10 +31,12 @@ def create_clients(client: ClientCreate,
         db=db,
         current_user=current_user
     )
-    return create_client(db, nome=client.nome, email=client.email)
+    return create_client(db, name=client.name, mail=client.mail, phone=client.phone)
 
-# Rota para listar todos os clientes cadastrados
-@router.get("/clients/", response_model=List[ClientResponse])
+
+
+
+@router.get("/", response_model=List[ClientOut])
 def list_clients(db: Session = Depends(get_db),
                 current_user: User = Depends(get_current_user)):
     """
@@ -44,7 +45,8 @@ def list_clients(db: Session = Depends(get_db),
     return get_all_clients(db)
 
 
-@router.put("/clients/{client_id}", response_model=ClientResponse)
+
+@router.put("/{client_id}", response_model=ClientOut)
 def update_clients(
     client_id: int,
     client: ClientCreate,
@@ -56,13 +58,13 @@ def update_clients(
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
     previous_data = {
-        "nome": db_client.nome,
-        "email": db_client.email
+        "name": db_client.name,
+        "mail": db_client.mail
     }
 
     updated_client = update_client(db, db_client, {
-        "nome": client.nome,
-        "email": client.email
+        "name": client.name,
+        "mail": client.mail
     })
 
     log_action(
@@ -87,8 +89,8 @@ def delete_clients(
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
     previous_data = {
-        "nome": db_client.nome,
-        "email": db_client.email
+        "name": db_client.name,
+        "mail": db_client.mail
     }
 
     delete_client(db, db_client)

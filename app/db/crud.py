@@ -1,4 +1,6 @@
 #db\crud.py
+
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -6,22 +8,53 @@ from typing import List, Optional
 
 from fastapi import Depends, HTTPException, status
 
-
-from app.db.models import (User, UploadFolder, UploadFile, 
-                           Client, InspectionItem, Checklist, 
-                           ChecklistInspected, EmergencyRequest, 
-                           AppVersion, BusVersion)
-
-from app.schemas.checklist import (ChecklistCreate,
-                                   ChecklistInspectedCreate)
-
-
+from app.db.models import (User, Client,  UploadFolder, UploadFile)
 from app.core.security import get_password_hash
 
-from app.core.dependencies import get_current_user
-from app.services.audit_service import log_action
+#====================================================================================
+# --- CRUD para User ---
+#====================================================================================
 
+def create_user(db: Session, mail: str, password: str, **kwargs) -> User:
+    hashed_pw = get_password_hash(password)
+    user = User(mail=mail, hashed_password=hashed_pw, **kwargs)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def update_user(db: Session, user: User, data: dict):
+    for k, v in data.items():
+        setattr(user, k, v)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def get_user(db: Session, mail: str):
+    return db.query(User).filter(User.mail == mail).first()
+
+
+def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
+    return db.query(User).filter(User.id == user_id).first()
+
+
+def delete_user(db: Session, user: User):
+    db.delete(user)
+    db.commit()
+
+
+def change_password(db: Session, user: User, new_password: str):
+    user.hashed_password = get_password_hash(new_password)
+    db.commit()
+    db.refresh(user)
+    return user
+
+#===================================================================================================================================
 # --- CRUD para Dropbox ---
+#===================================================================================================================================
+
 def save_upload(db: Session, folder_hash: str, files: dict, user_id:  Optional[int] = None,  checklist_id: Optional[int] = None):
     folder = UploadFolder(folder_hash=folder_hash, user_id=user_id, checklist_id=checklist_id)
     db.add(folder)
@@ -40,67 +73,27 @@ def save_upload(db: Session, folder_hash: str, files: dict, user_id:  Optional[i
     return {'folder':folder, 'files': files_saved}
 
 
-# --- CRUD para User ---
-def create_user(db: Session, email: str, password: str, **kwargs) -> User:
-    hashed_pw = get_password_hash(password)
-    user = User(email=email, hashed_password=hashed_pw, **kwargs)
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
-
-def update_user(db: Session, user: User, updates: dict) -> User:
-    if "email" in updates:
-        new_email = updates["email"]
-        # Verifica se outro usuário já tem esse email
-        existing_user = db.query(User).filter(User.email == new_email).first()
-        if existing_user and existing_user.id != user.id:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="E-mail já está em uso por outro usuário."
-            )
-
-    for field, value in updates.items():
-        setattr(user, field, value)
-    db.commit()
-    db.refresh(user)
-    return user
-
-
-def get_user(db: Session, email: str):
-    return db.query(User).filter(User.email == email).first()
-
-
-def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
-    return db.query(User).filter(User.id == user_id).first()
-
-
-def delete_user(db: Session, user: User):
-    db.delete(user)
-    db.commit()
-
-
-def change_password(db: Session, user: User, new_password: str):
-    user.hashed_password = get_password_hash(new_password)
-    db.commit()
-    db.refresh(user)
-    return user
-
-
+#====================================================================================================================
 # --- CRUD para Client ---
-def create_client(db: Session, nome: str, email: Optional[str] = None) -> Client:
-    client = Client(nome=nome, email=email)
+#====================================================================================================================
+def create_client(db: Session, name: str, mail: Optional[str] = None,  phone: Optional[str] = None) -> Client:
+    client = Client(name=name, mail=mail, phone=phone)
     db.add(client)
     db.commit()
     db.refresh(client)
     return client
 
+
 def get_client_by_id(db: Session, client_id: int) -> Optional[Client]:
     return db.query(Client).filter(Client.id == client_id).first()
 
+
 def get_all_clients(db: Session) -> List[Client]:
-    return db.query(Client).all()
+    return (
+        db.query(Client)
+          .order_by(desc(Client.frequency_order), Client.name.asc())  # tie-break por nome
+          .all()
+    )
 
 
 def update_client(db: Session, client: Client, updates: dict) -> Client:
@@ -116,6 +109,9 @@ def delete_client(db: Session, client: Client):
     db.commit()
 
 
+#================================================================================================
+#================================================================================================
+"""
 
 #---- CRUD para InspectionItem  ---
 # --- CREATE ---
@@ -209,9 +205,7 @@ def add_inspected_items(
     checklist_id: int, 
     itens: List[ChecklistInspectedCreate]
 ):
-    """
-    Adiciona itens inspecionados a um checklist específico e retorna os IDs criados.
-    """
+   
     try:
         inspected_items = []
         for item in itens:
@@ -339,3 +333,4 @@ def get_bus_version_by_id(db: Session, version_id: int) -> Optional[BusVersion]:
 def delete_bus_version(db: Session, version: BusVersion):
     db.delete(version)
     db.commit()
+"""

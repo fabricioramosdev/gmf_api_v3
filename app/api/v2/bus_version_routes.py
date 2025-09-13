@@ -4,7 +4,7 @@ from typing import List
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user
 from app.db.models import User
-from app.schemas.bus_version import BusVersionCreate, BusVersionResponse
+from app.schemas.bus_version_old import BusVersionCreate, BusVersionResponse
 from app.db.crud import create_bus_version, get_all_bus_versions, get_bus_version_by_id, delete_bus_version
 
 router = APIRouter()

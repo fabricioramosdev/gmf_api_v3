@@ -5,7 +5,7 @@ from typing import List
 from app.db.session import get_db
 from app.db.models import User
 from app.core.dependencies import get_current_user
-from app.schemas.checklist import (
+from app.schemas.checklist_old import (
     ChecklistCreate, ChecklistResponse, 
     ChecklistInspectedCreate, ItemFotoAssociationRequest
 )
