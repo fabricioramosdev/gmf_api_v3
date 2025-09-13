@@ -94,39 +94,48 @@ class Checklist(Base):
     obs = Column(Text, nullable=True)   
     created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
-
 # OK DTO
+# --- UploadFolder (1) ---
 class UploadFolder(Base):
     __tablename__ = "upload_folders"
 
     id = Column(Integer, primary_key=True, index=True)
-    
     folder_hash = Column(String, unique=True, index=True)
-    
-    fk_user = Column(Integer, ForeignKey("users.id"))
-    fk_checklist = Column(Integer, ForeignKey("checklists.id"))
-    fk_file = relationship(
+
+    fk_user = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    fk_checklist = Column(Integer, ForeignKey("checklists.id"), nullable=True, index=True)
+
+    # Uma pasta -> muitos arquivos
+    files = relationship(
         "UploadFile",
         back_populates="folder",
-        cascade="all, delete-orphan",  # opcional, mas útil
+        cascade="all, delete-orphan",   # opcional (bom pra limpeza)
+        passive_deletes=True,           # se a FK tiver ondelete=CASCADE
     )
 
     created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
-
 # OK DTO
+# --- UploadFile (N) ---
 class UploadFile(Base):
     __tablename__ = "upload_files"
 
     id = Column(Integer, primary_key=True, index=True)
 
-    file_name = Column(String)
-    file_url = Column(String)
-    
-    fk_folder = Column(Integer, ForeignKey("upload_folders.id"))
-    folder = relationship("UploadFolder", back_populates="fk_file")
+    file_name = Column(String, nullable=False)
+    file_url = Column(String, nullable=False)
+
+    fk_folder = Column(
+        Integer,
+        ForeignKey("upload_folders.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # volta para a pasta (nome deve bater com o lado de lá)
+    folder = relationship("UploadFolder", back_populates="files")
 
     created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
+
 
 
 # OK DTO
