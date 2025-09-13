@@ -1,20 +1,20 @@
-#db\crud.py
-
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
+
 
 from typing import List, Optional
 
-from fastapi import Depends, HTTPException, status
+from app.db.models import (User, Client, InspectionItem,
+                             UploadFolder, UploadFile, 
+                             EmergencyRequests, Checklist, ChecklistItemsInspected, 
+                             Checklist, InspectionItem
+                             )
 
-from app.db.models import (User, Client,  UploadFolder, UploadFile)
 from app.core.security import get_password_hash
 
 #====================================================================================
 # --- CRUD para User ---
 #====================================================================================
-
 def create_user(db: Session, mail: str, password: str, **kwargs) -> User:
     hashed_pw = get_password_hash(password)
     user = User(mail=mail, hashed_password=hashed_pw, **kwargs)
@@ -51,10 +51,13 @@ def change_password(db: Session, user: User, new_password: str):
     db.refresh(user)
     return user
 
+
+def user_is_admin(user: User) -> bool:
+    return getattr(user, "is_admin", False) or str(getattr(user, "role", "")).lower() == "admin"
+
 #===================================================================================================================================
 # --- CRUD para Dropbox ---
 #===================================================================================================================================
-
 def save_upload(db: Session, folder_hash: str, files: dict, user_id:  Optional[int] = None,  checklist_id: Optional[int] = None):
     folder = UploadFolder(folder_hash=folder_hash, user_id=user_id, checklist_id=checklist_id)
     db.add(folder)
@@ -71,7 +74,6 @@ def save_upload(db: Session, folder_hash: str, files: dict, user_id:  Optional[i
     db.commit()
     db.refresh(folder)
     return {'folder':folder, 'files': files_saved}
-
 
 #====================================================================================================================
 # --- CRUD para Client ---
@@ -110,40 +112,44 @@ def delete_client(db: Session, client: Client):
 
 
 #================================================================================================
+#--- CRUD para InspectionItem  ---
 #================================================================================================
-"""
-
-#---- CRUD para InspectionItem  ---
-# --- CREATE ---
 
 def create_inspection_item(
     db: Session,
-    nome: str,
+    name: str,
     status: Optional[bool] = True,
-    obrigatorio: Optional[bool] = False,
-    foto: Optional[bool] = False  # Novo campo
+    mandatory: Optional[bool] = False,
+    need_for_photo: Optional[bool] = False
 ) -> InspectionItem:
     item = InspectionItem(
-        nome=nome,
+        name=name,
         status=status,
-        obrigatorio=obrigatorio,
-        foto=foto
+        mandatory=mandatory,
+        need_for_photo=need_for_photo
     )
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
-# --- READ ---
+
 def get_all_inspection_items(db: Session) -> List[InspectionItem]:
-    return db.query(InspectionItem).all()
+    return (
+        db.query(InspectionItem)
+          .order_by(
+               InspectionItem.need_for_photo.desc(),  # True primeiro
+              InspectionItem.name.asc(),              # A→Z
+              InspectionItem.id.asc(),                # tie-break estável
+          )
+          .all()
+    )
 
 
 def get_inspection_item_by_id(db: Session, item_id: int) -> Optional[InspectionItem]:
     return db.query(InspectionItem).filter(InspectionItem.id == item_id).first()
 
 
-# --- UPDATE ---
 def update_inspection_item(db: Session, item: InspectionItem, updates: dict) -> InspectionItem:
     for key, value in updates.items():
         if hasattr(item, key):
@@ -153,184 +159,164 @@ def update_inspection_item(db: Session, item: InspectionItem, updates: dict) -> 
     return item
 
 
-# --- DELETE ---
 def delete_inspection_item(db: Session, item: InspectionItem):
     db.delete(item)
     db.commit()
 
 
-#---- CRUD para Checklist ---
-def create_checklist(db: Session, checklist: 
-                     ChecklistCreate, user_id: int) -> Checklist:
+# =====================================================================================
+# --- CRUD para S.O.S ---
+#======================================================================================
+def create_emergency_request(db: Session, user_id: int, lat: Optional[float], long: Optional[float]) -> EmergencyRequests:
 
-    try:
-        checklist = Checklist(
-         
-            cliente_id=checklist.cliente_id,
-            versao_onibus=checklist.versao_onibus,
-            km_saida=checklist.km_saida,
-            km_chegada=checklist.km_chegada,
-            foto_painel_saida=checklist.foto_painel_saida,
-            foto_painel_chegada=checklist.foto_painel_chegada,
-            combustivel_saida=checklist.combustivel_saida,
-            combustivel_chegada=checklist.combustivel_chegada,
-            observacoes=checklist.observacoes,
-            user_id=user_id
-        )
-        db.add(checklist)
-        db.commit()
-        db.refresh(checklist)
-
-    except Exception as e:
-        db.rollback()
+    request = EmergencyRequests(
+        fk_user=user_id,
+        lat=lat,
+        long=long
+    )
     
-    return checklist
+    db.add(request)
+    db.commit()
+    db.refresh(request)
+
+    return request
+
+
+def get_emergency_requests(db: Session) -> List[EmergencyRequests]:
+    return db.query(EmergencyRequests).all()
+
+
+def get_emergency_request_by_id(db: Session, request_id: int) -> Optional[EmergencyRequests]:
+    return db.query(EmergencyRequests).filter(EmergencyRequests.id == request_id).first()
+
+
+def verify_emergency_request(db: Session, request: EmergencyRequests) -> EmergencyRequests:
+    request.checked = True
+    db.commit()
+    db.refresh(request)
+    return request
+
+#=====================================================================================
+#---- CRUD para Checklist ---
+#=====================================================================================
+
+def get_checklist_by_id_for_user(db: Session, checklist_id: int, user: User) -> Optional[Checklist]:
+    q = db.query(Checklist).filter(Checklist.id == checklist_id)
+    if not user_is_admin(user):
+        q = q.filter(Checklist.fk_user == user.id)
+    return q.first()
+
 
 def get_all_checklists(db: Session) -> List[Checklist]:
     return db.query(Checklist).all()
+
 
 def get_checklist_by_id(db: Session, checklist_id: int) -> Checklist:
     return db.query(Checklist).filter(Checklist.id == checklist_id).first()
 
 
 def list_all_checklists(db: Session, user_id: int) -> List[Checklist]:
-    #print(owner_id)
-    #import pdb; 
-    #pdb.set_trace()
-    return db.query(Checklist).filter(Checklist.user_id == user_id).all()
+    return db.query(Checklist).filter(Checklist.fk_user == user_id).all()
 
 
-def add_inspected_items(
-    db: Session, 
-    checklist_id: int, 
-    itens: List[ChecklistInspectedCreate]
-):
-   
-    try:
-        inspected_items = []
-        for item in itens:
-            inspected = ChecklistInspected(
-                checklist_id=checklist_id,
-                inspection_item_id=item.inspection_item_id,
-                status=item.status,
-                foto_id=item.foto_id
-            )
-            db.add(inspected)
-            inspected_items.append(inspected)
 
-        db.commit()
+#=====================================================================================
+#---- CRUD para ChecklistItemsInspected ---         
+#=====================================================================================
 
-        ids_criados = [item.id for item in inspected_items]
-
-        return {"message": "Itens adicionados com sucesso.", "ids": ids_criados}
-    
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise Exception(f"Erro ao adicionar itens inspecionados: {str(e)}")
-
-# --- CRUD para ChecklistInspected ---
-def create_checklist_inspected(db: Session, item_data: ChecklistInspectedCreate) -> ChecklistInspected:
-    item = ChecklistInspected(
-        checklist_id=item_data.checklist_id,
-        inspection_item_id=item_data.inspection_item_id,
-        status=item_data.status,
-        foto_id=item_data.foto_id
+def get_checklist_item(db: Session, checklist_id: int, item_id: int) -> Optional[ChecklistItemsInspected]:
+    return (
+        db.query(ChecklistItemsInspected)
+          .filter(
+              ChecklistItemsInspected.fk_checklist == checklist_id,
+              ChecklistItemsInspected.fk_item == item_id,
+          )
+          .first()
     )
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
 
-
-def get_all_checklist_inspected(db: Session) -> List[ChecklistInspected]:
-    return db.query(ChecklistInspected).all()
-
-
-def get_checklist_inspected_by_checklist(db: Session, checklist_id: int) -> List[ChecklistInspected]:
-    return db.query(ChecklistInspected).filter(ChecklistInspected.checklist_id == checklist_id).all()
-
-
-from sqlalchemy.orm import Session
-from app.db.models import ChecklistInspected, UploadFile
-
-def associate_photos_to_inspected_items(
+def add_item_to_checklist(
     db: Session,
-    associations: list[dict]
-):
-    for association in associations:
-        inspected_item = db.query(ChecklistInspected).filter(
-            ChecklistInspected.id == association["item_inspected_id"]
-        ).first()
+    *,
+    checklist_id: int,
+    item_id: int,
+    status: str,
+    photo_id: Optional[int],
+) -> ChecklistItemsInspected:
+    # sanity checks opcionais
+    if not db.get(Checklist, checklist_id):
+        raise ValueError("Checklist inexistente.")
+    if not db.get(InspectionItem, item_id):
+        raise ValueError("InspectionItem inexistente.")
 
-        if inspected_item is None:
-            raise ValueError(f"Item inspecionado não encontrado (id={association['item_inspected_id']})")
+    exists = get_checklist_item(db, checklist_id, item_id)
+    if exists:
+        # se preferir 409 na rota, apenas retorne exists e trate lá
+        return exists
 
-        foto = db.query(UploadFile).filter(
-            UploadFile.id == association["foto_id"]
-        ).first()
-
-        if foto is None:
-            raise ValueError(f"Arquivo de foto não encontrado (id={association['foto_id']})")
-
-        inspected_item.foto = foto
-
-    db.commit()
-
-
-def create_emergency_request(db: Session, user_id: int, latitude: Optional[float], longitude: Optional[float]) -> EmergencyRequest:
-    request = EmergencyRequest(
-        user_id=user_id,
-        latitude=latitude,
-        longitude=longitude
+    obj = ChecklistItemsInspected(
+        fk_checklist=checklist_id,
+        fk_item=item_id,
+        status=status,
+        fk_foto=photo_id,   # nome do model
     )
-    db.add(request)
+    db.add(obj)
     db.commit()
-    db.refresh(request)
-    return request
+    db.refresh(obj)
+    return obj
 
-def get_emergency_requests(db: Session) -> List[EmergencyRequest]:
-    return db.query(EmergencyRequest).all()
-
-def get_emergency_request_by_id(db: Session, request_id: int) -> Optional[EmergencyRequest]:
-    return db.query(EmergencyRequest).filter(EmergencyRequest.id == request_id).first()
-
-def verify_emergency_request(db: Session, request: EmergencyRequest) -> EmergencyRequest:
-    request.verificado = True
+def update_checklist_item(
+    db: Session,
+    *,
+    checklist_id: int,
+    item_id: int,
+    data: dict,
+) -> Optional[ChecklistItemsInspected]:
+    obj = get_checklist_item(db, checklist_id, item_id)
+    if not obj:
+        return None
+    if "status" in data and data["status"] is not None:
+        obj.status = data["status"]
+    if "photo_id" in data:
+        obj.fk_foto = data["photo_id"]
     db.commit()
-    db.refresh(request)
-    return request
+    db.refresh(obj)
+    return obj
 
-
-def create_app_version(db: Session, version: str, platform: str) -> AppVersion:
-    entry = AppVersion(version=version, platform=platform)
-    db.add(entry)
+def delete_checklist_item(db: Session, *, checklist_id: int, item_id: int) -> bool:
+    obj = get_checklist_item(db, checklist_id, item_id)
+    if not obj:
+        return False
+    db.delete(obj)
     db.commit()
-    db.refresh(entry)
-    return entry
+    return True
 
-def get_latest_app_version(db: Session, platform: str) -> AppVersion:
-    return db.query(AppVersion).filter(AppVersion.platform == platform).order_by(AppVersion.created_at.desc()).first()
-
-def get_all_app_versions(db: Session) -> List[AppVersion]:
-    return db.query(AppVersion).order_by(AppVersion.created_at.desc()).all()
-
-
-
-def create_bus_version(db: Session, nome: str) -> BusVersion:
-    version = BusVersion(nome=nome)
-    db.add(version)
+def bulk_add_items(
+    db: Session,
+    *,
+    checklist_id: int,
+    items: List[dict],
+    upsert: bool = True,
+) -> List[ChecklistItemsInspected]:
+    """Cria vários itens; se upsert=True, atualiza status/foto se já existir."""
+    out = []
+    for it in items:
+        existing = get_checklist_item(db, checklist_id, it["item_id"])
+        if existing:
+            if upsert:
+                if "status" in it:   existing.status = it["status"]
+                if "photo_id" in it: existing.fk_foto = it["photo_id"]
+                out.append(existing)
+            # se não for upsert, apenas ignora
+        else:
+            obj = ChecklistItemsInspected(
+                fk_checklist=checklist_id,
+                fk_item=it["item_id"],
+                status=it.get("status", "NA"),
+                fk_foto=it.get("photo_id"),
+            )
+            db.add(obj)
+            out.append(obj)
     db.commit()
-    db.refresh(version)
-    return version
-
-def get_all_bus_versions(db: Session) -> List[BusVersion]:
-    return db.query(BusVersion).order_by(BusVersion.nome).all()
-
-def get_bus_version_by_id(db: Session, version_id: int) -> Optional[BusVersion]:
-    return db.query(BusVersion).filter(BusVersion.id == version_id).first()
-
-
-def delete_bus_version(db: Session, version: BusVersion):
-    db.delete(version)
-    db.commit()
-"""
+    # refresh opcional (se precisa de ids/fks na resposta)
+    for obj in out: db.refresh(obj)
+    return out

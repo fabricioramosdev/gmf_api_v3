@@ -29,14 +29,7 @@ def create(user_data: UserCreate, db: Session = Depends(get_db)):
     if get_user(db, user_data.mail):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Usuário já existe")
     
-    log_action(
-        action="create clients",
-        previous_data={},
-        current_data=user_data.model_dump(),
-        db=db,
-        current_user=get_current_user
-    )
-
+   
   
     return create_user(
                         db,
@@ -64,15 +57,7 @@ def change_my_password(
     current_user = Depends(get_current_user),
 ):
     hpw = get_password_hash(payload.new_password)
-
-    log_action(
-        action="change password",
-        previous_data={},
-        current_data={},
-        db=db,
-        current_user=get_current_user
-    )
-
+   
     update_user(db, current_user, {"hashed_password": hpw})
     return  # 204 No Content
 

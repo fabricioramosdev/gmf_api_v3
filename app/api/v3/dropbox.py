@@ -18,13 +18,15 @@ from app.db.session import get_db
 from app.db.crud import save_upload
 
 # Esquema OAuth2 de autenticação por token
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v2/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v3/auth/login")
 
-# Instância do roteador FastAPI
-router = APIRouter()
+
+
+router = APIRouter(prefix="/dropbox", tags=["Dropbox"])
+
 
 # 📤 Rota para upload de múltiplos arquivos para o Dropbox
-@router.post("/upload/")
+@router.post("/upload/files/")
 async def upload_multiple_files(
     files: List[UploadFile] = File(...),                   # Lista de arquivos recebidos
     folder_name: Optional[str] = Form(None),               # Nome da pasta opcional
@@ -86,6 +88,7 @@ def create_folder(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # 📂 Lista os arquivos de uma pasta no Dropbox

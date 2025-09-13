@@ -3,18 +3,32 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import (Column, String, Integer, Float, Boolean, JSON, Text, DateTime,ForeignKey)
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import (Column, String, Integer, Float, Boolean, JSON, Text, DateTime,ForeignKey, UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
 
 
-class ChecklistStatus(str, Enum):
-    INICIADO = 1
-    EM_TRANSPORTE = 2
-    ENTREGUE = 3
-    CONCLUIDO = 0
+class ChecklistItemsInspected(Base):
+    __tablename__ = "checklists_items_inspected"
+    id = Column(Integer, primary_key=True, index=True)
+
+    fk_checklist = Column(Integer, ForeignKey("checklists.id", ondelete="CASCADE"), nullable=False, index=True)
+    checklist = relationship("Checklist", backref="itens")
+
+    fk_item = Column(Integer, ForeignKey("inspection_items.id", ondelete="RESTRICT"), nullable=False, index=True)
+    item = relationship("InspectionItem", back_populates="checklists")
+
+    status = Column(String, nullable=False)
+    fk_foto = Column(Integer, ForeignKey("upload_files.id", ondelete="SET NULL"), nullable=True, index=True)
+    foto = relationship("UploadFile")
+
+    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("fk_checklist", "fk_item", name="uq_checklist_item"),
+    )
+
 
 # OK DTO
 class Client(Base):
@@ -75,46 +89,9 @@ class Checklist(Base):
     fk_user = Column(Integer, ForeignKey("users.id"), nullable=False)
     user = relationship("User")
 
-    status = Column(
-        SAEnum(
-            ChecklistStatus,
-            name="checklist_status",
-            native_enum=False,          # grava como VARCHAR + CHECK (portável)
-            validate_strings=True,      # valida mesmo se vier string
-        ),
-        nullable=False,
-        default=ChecklistStatus.INICIADO,
-        index=True,
-    )
+    status = Column(String, nullable=True)
 
     obs = Column(Text, nullable=True)   
-    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
-
-
-# OK DTO
-class ChecklistItemsInspected(Base):
-
-    __tablename__ = "checklists_items_inspected"
-
-    id = Column(Integer, primary_key=True, index=True)
-
-    fk_checklist = Column(Integer, ForeignKey("checklists.id"), nullable=False)
-    checklist = relationship("Checklist", backref="itens")
-
-
-    fk_item = Column(Integer, ForeignKey("inspection_items.id"))
-    item = relationship("InspectionItem", back_populates="checklists")
-    
-    status = Column(String, nullable=False) # Ex: ok, rejeitado, na
-    
-    fk_photo = Column(
-        Integer,
-        ForeignKey("upload_files.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-    photo = relationship("UploadFile", lazy="joined")
-    
     created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
 

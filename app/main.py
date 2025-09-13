@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v3 import api_v3
-
 from fastapi.openapi.utils import get_openapi
 
 app = FastAPI(
