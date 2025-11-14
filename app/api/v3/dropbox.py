@@ -61,8 +61,8 @@ async def upload_multiple_files(
         return {
             "message": "Upload concluído!",
             "checklist": checklist_id,
-            "folder": folder,           
-            "files": saved
+            "folder": folder,
+            "files": [{"filename": f, "info": saved[f]} for f in saved]
         }
 
     except Exception as e:
