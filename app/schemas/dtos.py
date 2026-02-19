@@ -1,6 +1,6 @@
 
 from datetime import datetime
-from typing import (Optional, List)
+from typing import (Optional, List, Literal)
 from pydantic import Field, AliasChoices, field_validator, computed_field
 
 from pydantic import (
@@ -54,74 +54,61 @@ class DTO(BaseModel):
 
 
 
-
-
-
-
 # =============================================================
 # Schemas – Items no Checklist
 # =============================================================
 
+StatusType = Literal["OK", "REJEITADO", "NA"]
+
 class ChecklistItemCreate(DTO):
     item_id: int = Field(validation_alias=AliasChoices("item_id", "fk_item"))
-    status: str = Field(default="NA", description="OK | REJEITADO | NA")
-    photo_id: Optional[int] = Field(default=None, validation_alias=AliasChoices("photo_id","fk_photo","foto_id"))
-
-    @field_validator("status", mode="before")
-    @classmethod
-    def normalize_status(cls, v):
-        if isinstance(v, bool): return "OK" if v else "REJEITADO"
-        s = str(v or "").strip().lower()
-        if s in _TRUTHY: return "OK"
-        if s in _FALSY:  return "REJEITADO"
-        if s in _NA:     return "NA"
-        su = s.upper().replace(" ", "_")
-        return su if su in {"OK","REJEITADO","NA"} else "NA"
+    status: StatusType = "NA"
+    photo_name: Optional[str] = None
+    photo_id: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("photo_id", "fk_photo", "foto_id")
+    )
 
     @field_validator("photo_id", mode="before")
     @classmethod
     def normalize_photo(cls, v):
-        if v in (None, "", "null", "None", 0, "0", False): return None
+        if v in (None, "", "null", "None", 0, "0", False):
+            return None
         try:
-            iv = int(v);  return iv if iv > 0 else None
-        except: return None
+            iv = int(v)
+            return iv if iv > 0 else None
+        except:
+            return None
+
 
 class ChecklistItemUpdate(DTO):
-    status: Optional[str] = None
-    photo_id: Optional[int] = Field(default=None, validation_alias=AliasChoices("photo_id","fk_photo","foto_id"))
-
-    @field_validator("status", mode="before")
+    status: Optional[StatusType] = None
+    photo_id: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("photo_id", "fk_photo", "foto_id")
+    )
+    photo_name: Optional[str] = None
+     
+    @field_validator("photo_id", mode="before")
     @classmethod
-    def normalize_status(cls, v):
-        if v is None: return None
-        if isinstance(v, bool): return "OK" if v else "REJEITADO"
-        s = str(v or "").strip().lower()
-        if s in _TRUTHY: return "OK"
-        if s in _FALSY:  return "REJEITADO"
-        if s in _NA:     return "NA"
-        su = s.upper().replace(" ", "_")
-        return su if su in {"OK","REJEITADO","NA"} else None
+    def normalize_photo(cls, v):
+        if v in (None, "", "null", "None", 0, "0", False):
+            return None
+        try:
+            iv = int(v)
+            return iv if iv > 0 else None
+        except:
+            return None
+        
 
 class ChecklistItemOut(DTO):
     id: int
-    # lê do atributo ORM fk_checklist / fk_item, MAS responde como checklist_id / item_id
-    checklist_id: int = Field(validation_alias=AliasChoices("checklist_id", "fk_checklist"))
-    item_id: int = Field(validation_alias=AliasChoices("item_id", "fk_item"))
-
-    status: str
-
-    # foto pode estar como fk_foto / fk_photo / foto_id no ORM/banco
-    photo_id: Optional[int] = Field(
-        default=None,
-        validation_alias=AliasChoices("photo_id", "fk_foto", "fk_photo", "foto_id"),
-    )
-
-    # inclua se existir no model
-    # created_in: datetime
-
-class ChecklistItemsBulkCreate(DTO):
-    items: List[ChecklistItemCreate]
-
+    checklist_id: int
+    item_id: int
+    status: StatusType
+    photo_id: Optional[int] = None
+    photo_name: Optional[str] = None
+    created_in: datetime
 
 
 # =============================================================

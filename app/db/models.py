@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import (Column, String, Integer, Float, Boolean, JSON, Text, DateTime,ForeignKey, UniqueConstraint)
+from sqlalchemy import (Column, String, Integer, Float, Boolean, JSON, Text, DateTime,ForeignKey, UniqueConstraint, CheckConstraint, func)
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -11,23 +11,44 @@ from app.db.session import Base
 
 class ChecklistItemsInspected(Base):
     __tablename__ = "checklists_items_inspected"
+
     id = Column(Integer, primary_key=True, index=True)
 
-    fk_checklist = Column(Integer, ForeignKey("checklists.id", ondelete="CASCADE"), nullable=False, index=True)
-    checklist = relationship("Checklist", backref="itens")
+    fk_checklist = Column(
+        Integer,
+        ForeignKey("checklists.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    checklist = relationship("Checklist", backref="itens_inspecionados")
 
-    fk_item = Column(Integer, ForeignKey("inspection_items.id", ondelete="RESTRICT"), nullable=False, index=True)
-    item = relationship("InspectionItem", back_populates="checklists")
+    fk_item = Column(
+        Integer,
+        ForeignKey("inspection_items.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    item = relationship("InspectionItem", back_populates="inspecoes_no_checklist")
 
     status = Column(String, nullable=False)
-    fk_photo = Column(Integer, ForeignKey("upload_files.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # ✅ novo: nome do arquivo (o app sabe isso na hora)
+    photo_name = Column(String, nullable=True, index=True)  # ex.: "IMG_20260219_120000.jpg"
+
+    # ✅ depois você atualiza com o ID real do upload_files
+    fk_photo = Column(
+        Integer,
+        ForeignKey("upload_files.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     photo = relationship("UploadFile", back_populates="inspected_item", uselist=False)
 
-    created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
+    created_in = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("fk_checklist", "fk_item", name="uq_checklist_item"),
-        UniqueConstraint("fk_photo", name="uq_item_photo"),  # redundante com unique=True, mas explícito
+        CheckConstraint("status IN ('OK','REJEITADO','NA')", name="ck_item_status"),
     )
 
 
@@ -134,8 +155,7 @@ class UploadFile(Base):
     folder = relationship("UploadFolder", back_populates="files")
 
     # lado 1:1 inverso (opcional, mas deixa a API ORM mais clara)
-    inspected_item = relationship("ChecklistItemsInspected", back_populates="photo",
-                                  uselist=False)
+    inspected_item = relationship("ChecklistItemsInspected", back_populates="photo", uselist=False)
 
     created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
@@ -151,11 +171,14 @@ class InspectionItem(Base):
     need_for_photo = Column(Boolean, default=False)         # Novo campo: requer foto?
     status = Column(Boolean, default=True)  # False = inativo, True = ativo
 
+
     checklists = relationship(
         "ChecklistItemsInspected",
         back_populates="item",
         cascade="all, delete-orphan",
     )
+    inspecoes_no_checklist = relationship("ChecklistItemsInspected",
+                                           back_populates="item")
     created_in = Column(DateTime(timezone=True), default=datetime.now, nullable=False)
 
 
