@@ -103,11 +103,6 @@ class ChecklistItemUpdate(DTO):
 
 class ChecklistItemOut(DTO):
     id: int
-    checklist_id: int
-    item_id: int
-    status: StatusType
-    photo_id: Optional[int] = None
-    photo_name: Optional[str] = None
     created_in: datetime
 
 
